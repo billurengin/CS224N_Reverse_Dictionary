@@ -8,12 +8,12 @@ import time
 
 from torch.utils.data import random_split, DataLoader, RandomSampler, SequentialSampler
 from src.data import CustomDataset, dataset_tokenized, get_wordvecs
-from src.models.model_1 import Model1
+from src.models.model_2 import Model2
 
-class Experiment1:
+class Experiment2:
 
     def __init__(self, checkpoint_dir, batch_size=16):
-        self.model = Model1()
+        self.model = Model2()
         self.dataset = CustomDataset(*dataset_tokenized())
         self.checkpoint_dir = checkpoint_dir
 
@@ -93,7 +93,7 @@ class Experiment1:
         self.model.to(self.device)
         # Note: AdamW is from the huggingface library for WeightDecay fix
         optimizer = AdamW(self.model.parameters(),
-                          lr=2e-5,    # args.learning_rate
+                          lr=1e-5,    # args.learning_rate
                           eps=1e-8)   # args.adam_epsilon
         total_steps = len(self.train_dataloader) * n_epochs
         scheduler = get_linear_schedule_with_warmup(optimizer,
@@ -140,3 +140,4 @@ class Experiment1:
                 print(f"  Validation Top 100 Accuracy: {validation_stats['top100_acc']}")
                 print(f"  Validation Loss: {validation_stats['loss']}")
         torch.save(self.model.state_dict(), f"{self.checkpoint_dir}/params.pt.final")
+
