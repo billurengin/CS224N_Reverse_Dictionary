@@ -34,7 +34,7 @@ class Experiment1:
 
         # Loss function - We use MSELoss instead of CrossEntropy since we are comparing with word embeddings rather than
         # class indices. There are too many words to use logits (we would have a 150K+ dimensional vector).
-        self.loss_fn = torch.nn.MSELoss()
+        self.loss_fn = torch.nn.MSELoss(reduction='sum')
         print(f"=> Set up experiment with model {self.model.__class__} and batch size {batch_size}.")
         print(f"=> Checkpoints saving to {self.checkpoint_dir}")
         print(f"=> Model running on device {self.device}")
@@ -54,7 +54,7 @@ class Experiment1:
         self.model.eval()
 
         t0 = time.time()
-        for i_, batch in enumerate(dataloader):
+        for i_, batch in enumerate(tqdm(dataloader)):
             tb = time.time()
             b_input_ids = batch[0].to(self.device)
             b_input_mask = batch[1].to(self.device)
@@ -87,6 +87,68 @@ class Experiment1:
             "loss": avg_loss,
         }
 
+    def analyze(self, dataloader, check_accuracy=False, get_metadata=False):
+        top_count = {"top_1": 0,
+                     "top_10": 0,
+                     "top_100": 0}
+
+        metadata = {
+            "all_losses": [],
+            "labels": [],
+            "rank": [],
+            "y_hat": [],
+        }
+
+        total_eval_loss = 0.0
+        self.model.to(self.device)
+        self.model.eval()
+        L = []
+        per_batch_times = []
+        for i_, batch in enumerate(tqdm(dataloader)):
+            b_input_ids = batch[0].to(self.device)
+            b_input_mask = batch[1].to(self.device)
+            b_labels = batch[2].to(self.device)
+
+            with torch.no_grad():
+                t0 = time.time()
+                output = self.model(b_input_ids, b_input_mask)
+                per_batch_times.append(time.time() - t0)
+                total_eval_loss += self.loss_fn(output, b_labels.float())
+
+            # Cache the output for later use
+            L.append((output.cpu(), b_labels.cpu()))
+        top_count["loss"] = total_eval_loss.item() / len(dataloader.dataset)
+        print("  INFO: Average loss: ", top_count["loss"])
+
+        if get_metadata:
+            metadata["avg_per_batch_time"] = sum(per_batch_times) / len(per_batch_times)
+
+        if check_accuracy:
+            wordvecs = get_wordvecs()
+            for batch in tqdm(L):
+                output = batch[0].numpy().astype(np.float32)
+                labels = batch[1].numpy().astype(np.float32)
+                for i in range(len(batch[0])):
+                    top_100 = wordvecs.most_similar(positive=[output[i]], topn=100)
+                    top_100_words = [t[0] for t in top_100]
+                    actual = wordvecs.most_similar(positive=[labels[i]], topn=1)[0][0]
+
+                    top_count["top_1"] += int(actual == top_100_words[0])
+                    top_count["top_10"] += int(actual in top_100_words[:10])
+                    top_count["top_100"] += int(actual in top_100_words)
+                    if get_metadata:
+                        metadata["all_losses"].append(((output[i] - labels[i]) ** 2).sum())
+                        metadata["labels"].append(actual)
+                        metadata["y_hat"].append(output[i])
+                        metadata["rank"].append(None if actual not in top_100_words else top_100_words.index(actual) + 1)
+            # Get averages
+            top_count["top_1"] /= len(dataloader.dataset)
+            top_count["top_10"] /= len(dataloader.dataset)
+            top_count["top_100"] /= len(dataloader.dataset)
+            print(f"  INFO: Top 1 acc: {top_count['top_1']}")
+            print(f"  INFO: Top 10 acc: {top_count['top_10']}")
+            print(f"  INFO: Top 100 acc: {top_count['top_100']}")
+        return top_count, metadata
 
     def train(self, n_epochs=4, fine_tune_epochs=1, evaluate_every=5, gradient_clip=None):
         assert fine_tune_epochs <= n_epochs

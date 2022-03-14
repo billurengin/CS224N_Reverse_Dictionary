@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import torch
-from src.experiments.experiment_3 import Experiment3
+from src.experiments.experiment_4 import Experiment4
 
 # Lock random seeds
 _RNG_SEED_VAL = 1337
@@ -17,7 +17,7 @@ def load_checkpoint(checkpoint, model):
 
 
 # Run training
-experiment = Experiment3("checkpoints/5", batch_size=32)
+experiment = Experiment4("checkpoints/tmp", batch_size=32)
 # load_checkpoint("checkpoints/4/params.pt.20", experiment.model)
 """
 print("Sanity check:")
@@ -30,7 +30,7 @@ print(f"Validation Top 100 Accuracy: {validation_stats['top100_acc']}")
 print(f"Validation Loss: {validation_stats['loss']}")
 """
 
-experiment.train(n_epochs=40, fine_tune_epochs=38, evaluate_every=5, gradient_clip=1.0)
+experiment.train(n_epochs=40, fine_tune_epochs=5, evaluate_every=5)  # Let's try no grad clipping
 # experiment.train(n_epochs=30, fine_tune_epochs=4, evaluate_every=5, gradient_clip=1.0)
 # experiment.train(n_epochs=100, fine_tune_epochs=100, evaluate_every=5, gradient_clip=1.0)
 
