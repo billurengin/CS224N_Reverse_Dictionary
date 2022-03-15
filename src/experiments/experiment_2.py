@@ -34,7 +34,7 @@ class Experiment2:
 
         # Loss function - We use MSELoss instead of CrossEntropy since we are comparing with word embeddings rather than
         # class indices. There are too many words to use logits (we would have a 150K+ dimensional vector).
-        self.loss_fn = torch.nn.MSELoss()
+        self.loss_fn = torch.nn.MSELoss(reduction="sum")
         print(f"=> Set up experiment with model {self.model.__class__} and batch size {batch_size}.")
         print(f"=> Checkpoints saving to {self.checkpoint_dir}")
         print(f"=> Model running on device {self.device}")

@@ -48,21 +48,34 @@ def custom_comparator(s1, s2):
 
 
 def get_sorted_checkpoints(ckpt_dir):
-    L = glob.glob(os.path.join(ckpt_dir, "*"))
+    L = glob.glob(os.path.join(ckpt_dir, "params.pt.*"))
     L = [os.path.basename(s) for s in L]
     return sorted(L, key=cmp_to_key(custom_comparator))
 
 
-def run_eval(ckpt_dir, train=True):
-    experiment = Experiment1("checkpoints/tmp", batch_size=32)
+def run_eval(ckpt_dir):
+    if "linear" in ckpt_dir:
+        experiment = Experiment1("checkpoints/tmp", batch_size=32)
+    elif "lstm" in ckpt_dir:
+        experiment = Experiment2("checkpoints/tmp", batch_size=32)
+    else:
+        raise Exception("Bad ckpt dir")
     all_ckpts = get_sorted_checkpoints(ckpt_dir)
     for ckpt in all_ckpts:
         load_checkpoint(os.path.join(ckpt_dir, ckpt), experiment.model)
-        get_accuracy = any(ckpt.endswith(s) for s in [".1", ".3", ".6", ".9", ".12", ".15"])
-        if train:
-            stats = experiment.analyze(experiment.train_dataloader, check_accuracy=get_accuracy)
+        if "linear" in ckpt_dir:
+            get_accuracy = any(ckpt.endswith(s) for s in [".1", ".3", ".6", ".9", ".12", ".15"])
+        elif "lstm" in ckpt_dir:
+            get_accuracy = any(ckpt.endswith(s) for s in [".1", ".10", ".20", ".30", ".40", ".50", ".60", ".70", ".80", ".90", ".100"])
         else:
-            stats = experiment.analyze(experiment.val_dataloader, check_accuracy=get_accuracy)
+            raise Exception("Bad ckpt dir")
+
+        stats = experiment.analyze(experiment.train_dataloader, check_accuracy=get_accuracy)
+        with open(os.path.join(ckpt_dir, 'train-stats.' + ckpt), 'wb') as f:
+            pickle.dump(stats, f)
+
+        stats = experiment.analyze(experiment.val_dataloader, check_accuracy=get_accuracy)
+        with open(os.path.join(ckpt_dir, "val-stats." + ckpt), 'wb') as f: pickle.dump(stats, f)
     return stats
 
 def normalize_losses(losses, max_thresh=100):
@@ -103,6 +116,7 @@ def do_analysis(ckpt_file, use_cached=False, train=True):
     print("Top-10 Acc: ", perf["top_10"])
     print("Top-100 Acc: ", perf["top_100"])
     print("Avg loss (all): ", sum(metadata["all_losses"]) / len(metadata["all_losses"]))
+    print("Loss std dev: ", np.std(np.array(metadata["all_losses"])))
     print("Worst loss: ", max(metadata["all_losses"]))
     print("% of losses greater than 60: ", len([i for i in metadata["all_losses"] if i >= 60]) / len(metadata["all_losses"]))
 
@@ -182,10 +196,7 @@ def do_analysis(ckpt_file, use_cached=False, train=True):
 
 
 if __name__ == "__main__":
-    checkpoint_dir = "checkpoints/linear.dropout.full-train"
-    print("====== Training set evaluation: ======")
-    run_eval(checkpoint_dir, train=True)
-
-    print("====== Validation set evaluation: ======")
-    run_eval(checkpoint_dir, train=False)
+    # checkpoint_dir = "checkpoints/linear.dropout.full-train"
+    checkpoint_dir = "checkpoints/lstm.4-layer.100.full-train"
+    run_eval(checkpoint_dir)
 
